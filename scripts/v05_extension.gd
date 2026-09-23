@@ -2,7 +2,7 @@ extends Node
 
 const EXT_SAVE_PATH := "user://kail_kampung_v05_ext.json"
 
-var game: Node
+var game
 var rng := RandomNumberGenerator.new()
 
 var ext_state := {
@@ -248,6 +248,8 @@ func detect_fishing_phase() -> void:
 func detect_catches() -> void:
     var fish_count: int = int(game.state.stats.get("fish_caught", 0))
     if fish_count <= last_fish_count:
+        last_inventory = game.state.inventory.duplicate(true)
+        last_records = game.state.caught.duplicate(true)
         if fish_count < last_fish_count:
             last_fish_count = fish_count
         return
@@ -332,6 +334,13 @@ func claim_daily() -> void:
     show_notice("+Rp%s • +35 XP dari misi harian." % format_money(reward))
 
 func open_gear() -> void:
+    if game.zone != "village":
+        show_notice("Bang Rian adanya di Karang Tirta.")
+        return
+    var rian_pos: Vector2 = game.village_npcs.get("rian", Vector2(500,410))
+    if game.player.distance_to(rian_pos) > 115.0:
+        show_notice("Dekati Bang Rian dulu kalau mau upgrade alat.")
+        return
     if not can_open_popup():
         return
     var up: Dictionary = game.state.get("upgrades", {})
@@ -374,6 +383,7 @@ func buy_upgrade(kind: String, price: int) -> void:
     game.state.upgrades[kind] = level + 1
     game.save_game()
     show_notice("%s naik ke Lv.%d." % [gear_name(kind), level + 2])
+    close_popup()
     open_gear()
 
 func gear_name(kind: String) -> String:
