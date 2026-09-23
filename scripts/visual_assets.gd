@@ -4,14 +4,28 @@ extends Node2D
 # Keeps gameplay/state in scripts/main.gd untouched and replaces the placeholder
 # presentation with the generated cat fisherman, UI art, fish icons, props and VFX.
 
-const SOURCE_SCALE := 320.0 / 1448.0
-const SHEET_HEIGHT := 240.0
+const SOURCE_SCALE := 160.0 / 1448.0
+const SHEET_HEIGHT := 120.0
+const DISPLAY_SCALE := 320.0 / 160.0
 
-# One mobile-friendly master atlas contains all five generated sheets:
-# 0 reference, 1 MC sprites, 2 inventory/fish, 3 UI, 4 world/VFX.
-const MASTER_ATLAS := preload("res://assets/kail_art_master.webp")
+# The mobile atlas is a 160x600 transparent WebP split into text-safe chunks.
+# It is reconstructed once at startup, so no loose generated PNG files are needed.
+# Atlas slots: 0 reference, 1 MC sprites, 2 inventory/fish, 3 UI, 4 world/VFX.
+const ATLAS_CHUNKS := [
+    preload("res://assets/atlas/chunk_00.gd"),
+    preload("res://assets/atlas/chunk_01_02.gd"),
+    preload("res://assets/atlas/chunk_03_04.gd"),
+    preload("res://assets/atlas/chunk_05_06.gd"),
+    preload("res://assets/atlas/chunk_07_08.gd"),
+    preload("res://assets/atlas/chunk_09_10.gd"),
+    preload("res://assets/atlas/chunk_11.gd"),
+    preload("res://assets/atlas/chunk_12.gd"),
+    preload("res://assets/atlas/chunk_13.gd"),
+    preload("res://assets/atlas/chunk_14.gd")
+]
 
 var game: Node
+var master_atlas: Texture2D
 var player_sprite: AnimatedSprite2D
 var catch_icon: Sprite2D
 var catch_fx: Sprite2D
@@ -27,10 +41,32 @@ var catch_timer := 0.0
 
 func _ready() -> void:
     game = get_parent()
+    master_atlas = _load_master_atlas()
+    if master_atlas == null:
+        push_error("Kail Kampung generated art atlas could not be decoded.")
+        set_process(false)
+        return
+
     _build_player()
     _build_world_props()
     _build_catch_feedback()
     call_deferred("_finish_ui_setup")
+
+
+func _load_master_atlas() -> Texture2D:
+    var encoded := ""
+    for chunk_script in ATLAS_CHUNKS:
+        var constants: Dictionary = chunk_script.get_script_constant_map()
+        encoded += str(constants.get("DATA", ""))
+
+    var raw := Marshalls.base64_to_raw(encoded)
+    if raw.is_empty():
+        return null
+
+    var image := Image.new()
+    if image.load_webp_from_buffer(raw) != OK:
+        return null
+    return ImageTexture.create_from_image(image)
 
 
 func _finish_ui_setup() -> void:
@@ -64,7 +100,7 @@ func _set_button_icon(buttons: Dictionary, key: String, texture: Texture2D) -> v
 
 
 func _process(delta: float) -> void:
-    if game == null:
+    if game == null or master_atlas == null:
         return
 
     _update_player_visual()
@@ -132,7 +168,7 @@ func _build_player() -> void:
     ], 2.0, true)
 
     player_sprite.sprite_frames = frames
-    player_sprite.scale = Vector2(2.02, 2.02)
+    player_sprite.scale = Vector2.ONE * (2.02 * DISPLAY_SCALE)
     player_sprite.play("idle")
     add_child(player_sprite)
 
@@ -216,7 +252,7 @@ func _add_prop(target: Array[Sprite2D], region: Rect2, pos: Vector2, scale_value
     var sprite := Sprite2D.new()
     sprite.texture = _world_icon(region)
     sprite.position = pos
-    sprite.scale = Vector2(scale_value, scale_value)
+    sprite.scale = Vector2.ONE * (scale_value * DISPLAY_SCALE)
     sprite.z_index = z
     sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
     add_child(sprite)
@@ -263,8 +299,8 @@ func _update_catch_feedback(delta: float) -> void:
         var progress := 1.0 - catch_timer / 1.65
         catch_icon.position = base_pos + Vector2(0, -72.0 - progress * 34.0)
         catch_fx.position = base_pos + Vector2(0, -72.0)
-        catch_icon.scale = Vector2.ONE * (1.66 + progress * 0.25)
-        catch_fx.scale = Vector2.ONE * (1.47 + progress * 0.32)
+        catch_icon.scale = Vector2.ONE * ((1.66 + progress * 0.25) * DISPLAY_SCALE)
+        catch_fx.scale = Vector2.ONE * ((1.47 + progress * 0.32) * DISPLAY_SCALE)
         var alpha := clampf(catch_timer / 0.35, 0.0, 1.0)
         catch_icon.modulate.a = alpha
         catch_fx.modulate.a = alpha
@@ -289,9 +325,14 @@ func _update_fishing_button() -> void:
 
     var fishing_value = game.get("fishing")
     var fishing: Dictionary = fishing_value if fishing_value is Dictionary else {}
+    var state_value = game.get("state")
+    var bait_count := 0
+    if state_value is Dictionary:
+        bait_count = int(state_value.get("bait", 0))
+
     if not fishing.is_empty() and str(fishing.get("phase", "")) == "fight":
         button.icon = _ui_icon(Rect2(985, 500, 197, 150))
-    elif int(game.get("state").get("bait", 0)) <= 0:
+    elif bait_count <= 0:
         button.icon = _ui_icon(Rect2(1220, 500, 220, 150))
     else:
         button.icon = _ui_icon(Rect2(755, 500, 195, 150))
@@ -335,7 +376,7 @@ func _world_icon(region: Rect2) -> AtlasTexture:
 
 func _atlas(sheet_index: int, source_region: Rect2) -> AtlasTexture:
     var texture := AtlasTexture.new()
-    texture.atlas = MASTER_ATLAS
+    texture.atlas = master_atlas
     texture.region = Rect2(
         Vector2(
             source_region.position.x * SOURCE_SCALE,
