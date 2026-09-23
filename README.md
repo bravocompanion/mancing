@@ -3,13 +3,13 @@
 Native Godot port of **Kail Kampung v0.4**, a top-down Indonesian fishing RPG.
 
 ## Open in Godot
-1. Install Godot 4.3 or newer.
+1. Install a Godot 4.x release compatible with this project (4.3+).
 2. Open Godot Project Manager.
 3. Click **Import**.
 4. Select this repository's `project.godot`.
-5. Open the project and press **F6/F5**.
+5. Open the project and press **F5**.
 
-The project uses a 720x1280 portrait viewport and includes touch controls, so it is designed for mobile first.
+The project uses a **720x1280 portrait viewport** and includes touch controls, so it is mobile-first.
 
 ## Mobile controls
 - D-pad: walk
@@ -17,33 +17,31 @@ The project uses a 720x1280 portrait viewport and includes touch controls, so it
 - `MANCING`: cast, hook, hold/release during fish fight
 - `STATUS`: character stats and progression
 
-Keyboard test controls are also included: WASD/arrows, E, Space.
+Keyboard testing is also available with WASD/arrows, E and Space.
 
-## Current native Godot features
+## Native Godot features currently migrated
 - Desa Karang Tirta and Rawa Kedung Wungu
-- NPC personality/banter system
-- One random banter per NPC interaction
+- NPC personality/banter system with one random banter per interaction
 - Pak Darto starter quest
 - Pak Beni 70 cm record side quest
 - Bu Yati fish sales
 - Bang Rian bait shop
 - Mbak Tika coffee/jamu shop
 - 12 fish species
-- Fish traits: calm, runner, diver, heavy, ambusher, brutal, slippery
+- Fish traits: calm, runner, diver, heavy, ambusher, brutal and slippery
 - Fishing tension/progress minigame
-- Random spot events (feeding/current/quiet)
-- Day/night + weather visuals
-- XP, levels, titles, stamina
-- Inventory/save system using `user://kail_kampung_save.json`
+- Random fishing conditions (feeding/current/quiet)
+- Day/night and weather visuals
+- XP, levels, titles and stamina
+- Local save using `user://kail_kampung_save.json`
 - Android export preset
 
 ## Android
-Godot still needs the local Android SDK/JDK and Android export templates installed before creating APK/AAB files.
-The included Android preset uses package ID:
+The repository includes an Android export preset with package ID:
 
 `com.bravocompanion.kailkampung`
 
-For Google Play release, create a release keystore locally and configure it in Godot Editor > Export > Android. Do not commit the keystore or passwords.
+Before exporting APK/AAB, configure the Android export requirements in your local Godot editor. For a Play Store release, create a release keystore locally and configure it in the Android export preset. **Do not commit keystores or passwords.**
 
-## Legacy browser build
-The previous HTML v0.4 is kept in `legacy/Kail_Kampung_v0.4.html` as a reference while the game is migrated to native Godot.
+## Migration note
+This repository is now the **native Godot/mobile codebase**. The earlier browser prototype remains a design/gameplay reference but is not required to open or run this Godot project.
