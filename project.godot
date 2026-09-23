@@ -1,10 +1,11 @@
 ; Kail Kampung - Godot Mobile
-; Native Godot port of browser v0.4
+; Native Godot mobile build v0.5
 config_version=5
 
 [application]
 config/name="Kail Kampung"
 config/description="Top-down fishing RPG Indonesia"
+config/version="0.5.0"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.3")
 
