@@ -87,7 +87,7 @@ func _process(delta: float) -> void:
     if game == null or mc == null:
         return
     var p: Vector2 = game.player
-    var movement := p - last_player
+    var movement: Vector2 = p - last_player
     mc.position = p + Vector2(0, -30)
     shadow.position = p + Vector2(0, 20)
     if abs(movement.x) > 0.2:
@@ -107,7 +107,7 @@ func _process(delta: float) -> void:
         current_anim = next_anim
         frame_index = 0
         anim_clock = 0.0
-    var fps := 10.0 if current_anim == "walk" else (8.0 if current_anim in ["cast", "reel"] else 6.0)
+    var fps: float = 10.0 if current_anim == "walk" else (8.0 if current_anim in ["cast", "reel"] else 6.0)
     anim_clock += delta
     if anim_clock >= 1.0 / fps:
         anim_clock = 0.0
@@ -169,7 +169,6 @@ func _decorate_buttons() -> void:
             if icon:
                 b.icon = icon
                 b.expand_icon = true
-                b.icon_max_width = 40
 
 func _install_world_props() -> void:
     var props := [
@@ -180,10 +179,11 @@ func _install_world_props() -> void:
     ]
     for d in props:
         var s := Sprite2D.new()
-        s.texture = get_world_asset(d.id)
+        s.texture = get_world_asset(str(d.get("id", "")))
         s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-        s.position = d.p
-        s.scale = Vector2(d.s, d.s)
+        s.position = d.get("p", Vector2.ZERO)
+        var prop_scale: float = float(d.get("s", 1.0))
+        s.scale = Vector2(prop_scale, prop_scale)
         s.z_index = 5
         game.add_child(s)
 
@@ -211,12 +211,12 @@ func _all_nodes(root: Node) -> Array[Node]:
 func _ellipse(w: int, h: int) -> Texture2D:
     var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
     image.fill(Color(0, 0, 0, 0))
-    var cx := w / 2.0
-    var cy := h / 2.0
+    var cx: float = float(w) / 2.0
+    var cy: float = float(h) / 2.0
     for y in range(h):
         for x in range(w):
-            var nx := (x - cx) / maxf(1.0, cx)
-            var ny := (y - cy) / maxf(1.0, cy)
+            var nx: float = (float(x) - cx) / maxf(1.0, cx)
+            var ny: float = (float(y) - cy) / maxf(1.0, cy)
             if nx * nx + ny * ny <= 1.0:
                 image.set_pixel(x, y, Color(0.03, 0.05, 0.04, 0.7))
     return ImageTexture.create_from_image(image)
