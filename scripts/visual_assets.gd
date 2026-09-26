@@ -1,24 +1,25 @@
 extends Node
 
-# Kail Kampung visual runtime v3.
+# Kail Kampung visual runtime v3.1
+# Godot 4.3-safe: dynamic game/dictionary values are explicitly typed.
 # MC uses a dedicated clean 768x432 atlas built from 42 verified cat poses.
-# Compact runtime atlas is kept only for UI / props / VFX.
+# Compact runtime atlas is used only for UI, props and VFX.
 
-const RUNTIME_ATLAS_PATH := "res://assets/generated/kail_runtime_atlas.webp"
-const MC_B64_PATH := "res://assets/generated/mc_character_atlas_v3.b64"
-const OLD_SHEET_SCALE := 128.0 / 1448.0
-const INV_OFFSET := Vector2(128, 0)
-const UI_OFFSET := Vector2(0, 96)
-const WORLD_OFFSET := Vector2(128, 96)
+const RUNTIME_ATLAS_PATH: String = "res://assets/generated/kail_runtime_atlas.webp"
+const MC_B64_PATH: String = "res://assets/generated/mc_character_atlas_v3.b64"
+const OLD_SHEET_SCALE: float = 128.0 / 1448.0
+const INV_OFFSET: Vector2 = Vector2(128, 0)
+const UI_OFFSET: Vector2 = Vector2(0, 96)
+const WORLD_OFFSET: Vector2 = Vector2(128, 96)
 
-const MC_CELL := Vector2(96.0, 72.0)
-const MC_COLUMNS := 8
-const MC_SCALE := 1.55
-const MC_BOTTOM_PAD := 1.5
+const MC_CELL: Vector2 = Vector2(96.0, 72.0)
+const MC_COLUMNS: int = 8
+const MC_SCALE: float = 1.55
+const MC_BOTTOM_PAD: float = 1.5
 
-# The generated source labels claimed 44 frames, but the artwork actually has
-# 42 usable cat poses. Cast and reel each contain 5 valid cat poses, not 6.
-const MC_ANIMS := {
+# Source artwork contains 42 usable cat poses.
+# Cast and reel each contain 5 usable poses, not 6.
+const MC_ANIMS: Dictionary = {
     "idle": [0, 1, 2, 3],
     "walk": [4, 5, 6, 7, 8, 9, 10, 11],
     "run": [12, 13, 14, 15, 16, 17, 18, 19],
@@ -29,7 +30,7 @@ const MC_ANIMS := {
     "wait": [38, 39, 40, 41]
 }
 
-const UI_RECTS := {
+const UI_RECTS: Dictionary = {
     "inventory":Rect2(20,20,170,230), "quest":Rect2(190,20,170,230), "map":Rect2(365,20,180,230),
     "settings":Rect2(545,20,175,230), "home":Rect2(720,20,175,230), "shop":Rect2(895,20,175,230),
     "coin":Rect2(1070,20,165,230), "gem":Rect2(1230,20,180,230), "energy":Rect2(20,275,160,205),
@@ -43,7 +44,7 @@ const UI_RECTS := {
     "pause":Rect2(760,885,160,190)
 }
 
-const INV_RECTS := {
+const INV_RECTS: Dictionary = {
     "basic_rod":Rect2(25,20,180,230), "pro_rod":Rect2(205,20,180,230), "golden_rod":Rect2(385,20,180,230),
     "bait_bucket":Rect2(565,20,180,230), "worm":Rect2(745,20,170,230), "shrimp_bait":Rect2(915,20,175,230),
     "lure":Rect2(1090,20,300,230), "hook":Rect2(20,255,165,220), "bobber":Rect2(185,255,170,220),
@@ -58,7 +59,7 @@ const INV_RECTS := {
     "crab":Rect2(1130,895,145,180), "golden_fish":Rect2(1275,895,165,180)
 }
 
-const WORLD_RECTS := {
+const WORLD_RECTS: Dictionary = {
     "dock":Rect2(0,0,560,300), "stool":Rect2(540,20,300,250), "fish_crate":Rect2(825,20,350,250),
     "basket":Rect2(1170,20,270,250), "bait_bucket":Rect2(0,285,240,250), "sign":Rect2(240,285,280,250),
     "reeds":Rect2(520,285,300,250), "rocks":Rect2(820,285,300,250), "lilies":Rect2(1110,285,330,250),
@@ -74,11 +75,11 @@ var mc_atlas: Texture2D
 var mc: Sprite2D
 var shadow: Sprite2D
 var placeholder_cover: Sprite2D
-var last_player := Vector2.ZERO
-var current_anim := "idle"
-var frame_index := 0
-var anim_clock := 0.0
-var catch_clock := 0.0
+var last_player: Vector2 = Vector2.ZERO
+var current_anim: String = "idle"
+var frame_index: int = 0
+var anim_clock: float = 0.0
+var catch_clock: float = 0.0
 
 func _ready() -> void:
     process_priority = 90
@@ -94,7 +95,7 @@ func _late_ready() -> void:
     if mc_atlas == null:
         return
 
-    var atlas_size := mc_atlas.get_size()
+    var atlas_size: Vector2 = mc_atlas.get_size()
     if int(atlas_size.x) != 768 or int(atlas_size.y) != 432:
         push_error("VisualAssets: MC atlas has wrong size %s; expected 768x432" % atlas_size)
         return
@@ -112,35 +113,40 @@ func _load_mc_atlas_from_b64() -> Texture2D:
     if not FileAccess.file_exists(MC_B64_PATH):
         push_error("VisualAssets: MC atlas payload missing: %s" % MC_B64_PATH)
         return null
-    var file := FileAccess.open(MC_B64_PATH, FileAccess.READ)
+
+    var file: FileAccess = FileAccess.open(MC_B64_PATH, FileAccess.READ)
     if file == null:
         push_error("VisualAssets: cannot open MC atlas payload")
         return null
-    var encoded := file.get_as_text().strip_edges()
-    var bytes := Marshalls.base64_to_raw(encoded)
+
+    var encoded: String = file.get_as_text().strip_edges()
+    var bytes: PackedByteArray = Marshalls.base64_to_raw(encoded)
     if bytes.is_empty():
         push_error("VisualAssets: MC atlas base64 decode failed")
         return null
-    var image := Image.new()
-    var err := image.load_webp_from_buffer(bytes)
+
+    var image: Image = Image.new()
+    var err: int = image.load_webp_from_buffer(bytes)
     if err != OK:
         push_error("VisualAssets: MC atlas WebP decode failed, error %d" % err)
         return null
+
     return ImageTexture.create_from_image(image)
 
 func _process(delta: float) -> void:
     if game == null or mc == null:
         return
 
-    var p: Vector2 = game.player
+    var p: Vector2 = game.get("player")
     var movement: Vector2 = p - last_player
-    var next_anim := "idle"
+    var next_anim: String = "idle"
+    var fishing_state: Dictionary = game.get("fishing")
 
     if catch_clock > 0.0:
         catch_clock -= delta
         next_anim = "caught"
-    elif not game.fishing.is_empty():
-        var phase := str(game.fishing.get("phase", ""))
+    elif not fishing_state.is_empty():
+        var phase: String = str(fishing_state.get("phase", ""))
         if phase == "wait":
             next_anim = "wait"
         elif phase == "bite":
@@ -156,7 +162,7 @@ func _process(delta: float) -> void:
         anim_clock = 0.0
         _set_mc_frame(current_anim, frame_index)
 
-    var fps := 6.0
+    var fps: float = 6.0
     if current_anim == "walk":
         fps = 9.0
     elif current_anim in ["cast", "reel"]:
@@ -169,7 +175,7 @@ func _process(delta: float) -> void:
         frame_index = (frame_index + 1) % frames.size()
         _set_mc_frame(current_anim, frame_index)
 
-    var feet_offset := (MC_CELL.y * 0.5 - MC_BOTTOM_PAD) * MC_SCALE
+    var feet_offset: float = (MC_CELL.y * 0.5 - MC_BOTTOM_PAD) * MC_SCALE
     mc.position = p + Vector2(0.0, -feet_offset)
     shadow.position = p + Vector2(0.0, 18.0)
     placeholder_cover.position = p + Vector2(0.0, 10.0)
@@ -187,7 +193,8 @@ func play_catch() -> void:
     anim_clock = 0.0
     _set_mc_frame("caught", 0)
     if game != null:
-        spawn_vfx("catch", game.player + Vector2(0, -35))
+        var p: Vector2 = game.get("player")
+        spawn_vfx("catch", p + Vector2(0.0, -35.0))
 
 func _install_mc() -> void:
     placeholder_cover = Sprite2D.new()
@@ -208,15 +215,15 @@ func _install_mc() -> void:
     mc.scale = Vector2(MC_SCALE, MC_SCALE)
     game.add_child(mc)
 
-    last_player = game.player
+    last_player = game.get("player")
     _set_mc_frame("idle", 0)
 
 func _set_mc_frame(anim: String, local_index: int) -> void:
     var frames: Array = MC_ANIMS.get(anim, MC_ANIMS["idle"])
-    var absolute_index := int(frames[local_index % frames.size()])
-    var col := absolute_index % MC_COLUMNS
-    var row := floori(float(absolute_index) / float(MC_COLUMNS))
-    var tex := AtlasTexture.new()
+    var absolute_index: int = int(frames[local_index % frames.size()])
+    var col: int = absolute_index % MC_COLUMNS
+    var row: int = floori(float(absolute_index) / float(MC_COLUMNS))
+    var tex: AtlasTexture = AtlasTexture.new()
     tex.atlas = mc_atlas
     tex.region = Rect2(float(col) * MC_CELL.x, float(row) * MC_CELL.y, MC_CELL.x, MC_CELL.y)
     mc.texture = tex
@@ -237,16 +244,16 @@ func get_world_asset(id: String) -> Texture2D:
     return _runtime_region(WORLD_OFFSET, WORLD_RECTS[id])
 
 func _runtime_region(offset: Vector2, logical: Rect2) -> AtlasTexture:
-    var tex := AtlasTexture.new()
+    var tex: AtlasTexture = AtlasTexture.new()
     tex.atlas = runtime_atlas
     tex.region = Rect2(offset + logical.position * OLD_SHEET_SCALE, logical.size * OLD_SHEET_SCALE)
     return tex
 
 func _decorate_buttons() -> void:
-    for node in _all_nodes(game):
+    for node: Node in _all_nodes(game):
         if node is Button:
-            var b := node as Button
-            var label := b.text.to_upper()
+            var b: Button = node as Button
+            var label: String = b.text.to_upper()
             var icon: Texture2D = null
             if label == "MISI":
                 icon = get_ui_icon("mission")
@@ -263,18 +270,21 @@ func _decorate_buttons() -> void:
 func _install_world_props() -> void:
     if runtime_atlas == null:
         return
-    var props := [
+
+    var props: Array = [
         {"id":"dock", "p":Vector2(105, 855), "s":2.6},
         {"id":"fish_crate", "p":Vector2(565, 410), "s":2.0},
         {"id":"fence", "p":Vector2(110, 555), "s":2.0},
         {"id":"canoe", "p":Vector2(525, 815), "s":2.2}
     ]
-    for d in props:
-        var s := Sprite2D.new()
+
+    for value: Variant in props:
+        var d: Dictionary = value
+        var s: Sprite2D = Sprite2D.new()
         s.texture = get_world_asset(str(d.get("id", "")))
         s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
         s.position = d.get("p", Vector2.ZERO)
-        var prop_scale := float(d.get("s", 1.0))
+        var prop_scale: float = float(d.get("s", 1.0))
         s.scale = Vector2(prop_scale, prop_scale)
         s.z_index = 5
         game.add_child(s)
@@ -282,32 +292,35 @@ func _install_world_props() -> void:
 func spawn_vfx(id: String, pos: Vector2) -> void:
     if runtime_atlas == null or not WORLD_RECTS.has(id):
         return
-    var s := Sprite2D.new()
+
+    var s: Sprite2D = Sprite2D.new()
     s.texture = get_world_asset(id)
     s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
     s.position = pos
     s.scale = Vector2(3.5, 3.5)
     s.z_index = 80
     game.add_child(s)
-    var tw := create_tween()
+
+    var tw: Tween = create_tween()
     tw.parallel().tween_property(s, "scale", Vector2(4.3, 4.3), 0.25)
     tw.parallel().tween_property(s, "modulate:a", 0.0, 0.55)
     tw.tween_callback(s.queue_free)
 
-func _all_nodes(root: Node) -> Array:
-    var out: Array = []
-    for c in root.get_children():
+func _all_nodes(root: Node) -> Array[Node]:
+    var out: Array[Node] = []
+    for c: Node in root.get_children():
         out.append(c)
         out.append_array(_all_nodes(c))
     return out
 
 func _ground_color(p: Vector2) -> Color:
-    var village := game.zone == "village"
-    var grass := Color("6c9658") if village else Color("637b50")
-    var road := Color("b3a074") if village else Color("8c825f")
-    var water := Color("3f8da8") if village else Color("477b70")
-    var water_y := 920.0 if village else 890.0
-    var bridge_x := 315.0 if village else 325.0
+    var zone_name: String = str(game.get("zone"))
+    var village: bool = zone_name == "village"
+    var grass: Color = Color("6c9658") if village else Color("637b50")
+    var road: Color = Color("b3a074") if village else Color("8c825f")
+    var water: Color = Color("3f8da8") if village else Color("477b70")
+    var water_y: float = 920.0 if village else 890.0
+    var bridge_x: float = 315.0 if village else 325.0
 
     if p.y >= 610.0 and p.y <= 690.0:
         return road
@@ -320,30 +333,34 @@ func _ground_color(p: Vector2) -> Color:
     return grass
 
 func _placeholder_cover_texture(w: int, h: int) -> Texture2D:
-    var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
+    var image: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
     image.fill(Color(0, 0, 0, 0))
-    var cx := float(w) * 0.5
-    var head_cy := 18.0
-    var head_r := 17.0
-    for y in range(h):
-        for x in range(w):
-            var dx := float(x) - cx
-            var dy := float(y) - head_cy
-            var in_head := dx * dx + dy * dy <= head_r * head_r
-            var in_body := x >= 13 and x <= w - 13 and y >= 27
+    var cx: float = float(w) * 0.5
+    var head_cy: float = 18.0
+    var head_r: float = 17.0
+
+    for y: int in range(h):
+        for x: int in range(w):
+            var dx: float = float(x) - cx
+            var dy: float = float(y) - head_cy
+            var in_head: bool = dx * dx + dy * dy <= head_r * head_r
+            var in_body: bool = x >= 13 and x <= w - 13 and y >= 27
             if in_head or in_body:
                 image.set_pixel(x, y, Color.WHITE)
+
     return ImageTexture.create_from_image(image)
 
 func _ellipse_texture(w: int, h: int) -> Texture2D:
-    var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
+    var image: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
     image.fill(Color(0, 0, 0, 0))
-    var cx := float(w) / 2.0
-    var cy := float(h) / 2.0
-    for y in range(h):
-        for x in range(w):
-            var nx := (float(x) - cx) / maxf(1.0, cx)
-            var ny := (float(y) - cy) / maxf(1.0, cy)
+    var cx: float = float(w) / 2.0
+    var cy: float = float(h) / 2.0
+
+    for y: int in range(h):
+        for x: int in range(w):
+            var nx: float = (float(x) - cx) / maxf(1.0, cx)
+            var ny: float = (float(y) - cy) / maxf(1.0, cy)
             if nx * nx + ny * ny <= 1.0:
                 image.set_pixel(x, y, Color(0.03, 0.05, 0.04, 0.72))
+
     return ImageTexture.create_from_image(image)
