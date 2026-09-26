@@ -1,29 +1,32 @@
 extends Node
 
 # Kail Kampung visual runtime v3.
-# MC is reconstructed from normalized atlas chunks already stored in Git.
-# The old compact atlas remains only for UI, props and VFX.
+# MC uses a dedicated clean 768x432 atlas built from 42 verified cat poses.
+# Compact runtime atlas is kept only for UI / props / VFX.
 
 const RUNTIME_ATLAS_PATH := "res://assets/generated/kail_runtime_atlas.webp"
-const MC_CHUNK_PATTERN := "res://assets/generated/mc_v4_%02d.b64"
-const MC_CHUNK_COUNT := 9
-const MC_COLUMNS := 8
-const MC_ROWS := 6
-const MC_SCALE := 0.90
+const MC_B64_PATH := "res://assets/generated/mc_character_atlas_v3.b64"
 const OLD_SHEET_SCALE := 128.0 / 1448.0
 const INV_OFFSET := Vector2(128, 0)
 const UI_OFFSET := Vector2(0, 96)
 const WORLD_OFFSET := Vector2(128, 96)
 
+const MC_CELL := Vector2(96.0, 72.0)
+const MC_COLUMNS := 8
+const MC_SCALE := 1.55
+const MC_BOTTOM_PAD := 1.5
+
+# The generated source labels claimed 44 frames, but the artwork actually has
+# 42 usable cat poses. Cast and reel each contain 5 valid cat poses, not 6.
 const MC_ANIMS := {
     "idle": [0, 1, 2, 3],
     "walk": [4, 5, 6, 7, 8, 9, 10, 11],
     "run": [12, 13, 14, 15, 16, 17, 18, 19],
-    "cast": [20, 21, 22, 23, 24, 25],
-    "reel": [26, 27, 28, 29, 30, 31],
-    "caught": [32, 33, 34, 35],
-    "tired": [36, 37, 38, 39],
-    "wait": [40, 41, 42, 43]
+    "cast": [20, 21, 22, 23, 24],
+    "reel": [25, 26, 27, 28, 29],
+    "caught": [30, 31, 32, 33],
+    "tired": [34, 35, 36, 37],
+    "wait": [38, 39, 40, 41]
 }
 
 const UI_RECTS := {
@@ -68,10 +71,9 @@ const WORLD_RECTS := {
 var game: Node2D
 var runtime_atlas: Texture2D
 var mc_atlas: Texture2D
-var mc_cell := Vector2(64, 112)
 var mc: Sprite2D
 var shadow: Sprite2D
-var old_player_cover: Sprite2D
+var placeholder_cover: Sprite2D
 var last_player := Vector2.ZERO
 var current_anim := "idle"
 var frame_index := 0
@@ -85,23 +87,17 @@ func _ready() -> void:
 func _late_ready() -> void:
     game = get_parent() as Node2D
     if game == null:
-        push_error("VisualAssets: parent game node missing")
+        push_error("VisualAssets: game parent missing")
         return
 
-    mc_atlas = _load_mc_atlas_from_chunks()
+    mc_atlas = _load_mc_atlas_from_b64()
     if mc_atlas == null:
-        push_error("VisualAssets: normalized MC atlas could not be reconstructed")
         return
 
-    mc_cell = Vector2(
-        float(mc_atlas.get_width()) / float(MC_COLUMNS),
-        float(mc_atlas.get_height()) / float(MC_ROWS)
-    )
-
-    if mc_atlas.get_width() != 512 or mc_atlas.get_height() != 672:
-        push_warning("VisualAssets: unexpected MC atlas size %dx%d; using derived cell %.1fx%.1f" % [
-            mc_atlas.get_width(), mc_atlas.get_height(), mc_cell.x, mc_cell.y
-        ])
+    var atlas_size := mc_atlas.get_size()
+    if int(atlas_size.x) != 768 or int(atlas_size.y) != 432:
+        push_error("VisualAssets: MC atlas has wrong size %s; expected 768x432" % atlas_size)
+        return
 
     if ResourceLoader.exists(RUNTIME_ATLAS_PATH):
         runtime_atlas = load(RUNTIME_ATLAS_PATH) as Texture2D
@@ -110,32 +106,25 @@ func _late_ready() -> void:
     await get_tree().process_frame
     _decorate_buttons()
     _install_world_props()
-    print("Kail Kampung MC atlas ready: %dx%d | cell %.0fx%.0f" % [
-        mc_atlas.get_width(), mc_atlas.get_height(), mc_cell.x, mc_cell.y
-    ])
+    print("Kail Kampung MC atlas ready: %dx%d | cell 96x72 | 42 verified frames" % [int(atlas_size.x), int(atlas_size.y)])
 
-func _load_mc_atlas_from_chunks() -> Texture2D:
-    var encoded := ""
-    for i in range(MC_CHUNK_COUNT):
-        var path := MC_CHUNK_PATTERN % i
-        if not FileAccess.file_exists(path):
-            push_error("VisualAssets: missing MC chunk %s" % path)
-            return null
-        var file := FileAccess.open(path, FileAccess.READ)
-        if file == null:
-            push_error("VisualAssets: failed opening MC chunk %s" % path)
-            return null
-        encoded += file.get_as_text().strip_edges()
-
-    var raw: PackedByteArray = Marshalls.base64_to_raw(encoded)
-    if raw.is_empty():
-        push_error("VisualAssets: MC atlas base64 decoded to empty data")
+func _load_mc_atlas_from_b64() -> Texture2D:
+    if not FileAccess.file_exists(MC_B64_PATH):
+        push_error("VisualAssets: MC atlas payload missing: %s" % MC_B64_PATH)
         return null
-
+    var file := FileAccess.open(MC_B64_PATH, FileAccess.READ)
+    if file == null:
+        push_error("VisualAssets: cannot open MC atlas payload")
+        return null
+    var encoded := file.get_as_text().strip_edges()
+    var bytes := Marshalls.base64_to_raw(encoded)
+    if bytes.is_empty():
+        push_error("VisualAssets: MC atlas base64 decode failed")
+        return null
     var image := Image.new()
-    var err := image.load_webp_from_buffer(raw)
+    var err := image.load_webp_from_buffer(bytes)
     if err != OK:
-        push_error("VisualAssets: MC WebP decode failed, code %d" % err)
+        push_error("VisualAssets: MC atlas WebP decode failed, error %d" % err)
         return null
     return ImageTexture.create_from_image(image)
 
@@ -167,11 +156,11 @@ func _process(delta: float) -> void:
         anim_clock = 0.0
         _set_mc_frame(current_anim, frame_index)
 
-    var fps: float = 6.0
+    var fps := 6.0
     if current_anim == "walk":
-        fps = 10.0
+        fps = 9.0
     elif current_anim in ["cast", "reel"]:
-        fps = 8.0
+        fps = 7.0
 
     anim_clock += delta
     if anim_clock >= 1.0 / fps:
@@ -180,28 +169,35 @@ func _process(delta: float) -> void:
         frame_index = (frame_index + 1) % frames.size()
         _set_mc_frame(current_anim, frame_index)
 
-    # Frames are normalized and bottom-aligned; this offset keeps paws on game.player.
-    var foot_offset := mc_cell.y * MC_SCALE * 0.43
-    mc.position = p + Vector2(0, -foot_offset)
-    old_player_cover.position = p + Vector2(0, 11)
-    old_player_cover.modulate = _ground_color(p)
-    shadow.position = p + Vector2(0, 18)
+    var feet_offset := (MC_CELL.y * 0.5 - MC_BOTTOM_PAD) * MC_SCALE
+    mc.position = p + Vector2(0.0, -feet_offset)
+    shadow.position = p + Vector2(0.0, 18.0)
+    placeholder_cover.position = p + Vector2(0.0, 10.0)
+    placeholder_cover.modulate = _ground_color(p)
 
     if abs(movement.x) > 0.2:
         mc.flip_h = movement.x < 0.0
 
     last_player = p
 
+func play_catch() -> void:
+    catch_clock = 1.2
+    current_anim = "caught"
+    frame_index = 0
+    anim_clock = 0.0
+    _set_mc_frame("caught", 0)
+    if game != null:
+        spawn_vfx("catch", game.player + Vector2(0, -35))
+
 func _install_mc() -> void:
-    # The procedural player in main.gd is still drawn at z=0. Cover it before drawing the real MC.
-    old_player_cover = Sprite2D.new()
-    old_player_cover.texture = _solid_texture(38, 62)
-    old_player_cover.z_index = 45
-    game.add_child(old_player_cover)
+    placeholder_cover = Sprite2D.new()
+    placeholder_cover.texture = _placeholder_cover_texture(56, 66)
+    placeholder_cover.z_index = 45
+    game.add_child(placeholder_cover)
 
     shadow = Sprite2D.new()
-    shadow.texture = _ellipse_texture(88, 27)
-    shadow.modulate = Color(1, 1, 1, 0.30)
+    shadow.texture = _ellipse_texture(96, 28)
+    shadow.modulate = Color(1, 1, 1, 0.28)
     shadow.z_index = 46
     game.add_child(shadow)
 
@@ -217,28 +213,13 @@ func _install_mc() -> void:
 
 func _set_mc_frame(anim: String, local_index: int) -> void:
     var frames: Array = MC_ANIMS.get(anim, MC_ANIMS["idle"])
-    var absolute_index: int = int(frames[local_index % frames.size()])
-    var col: int = absolute_index % MC_COLUMNS
-    var row: int = floori(float(absolute_index) / float(MC_COLUMNS))
-
+    var absolute_index := int(frames[local_index % frames.size()])
+    var col := absolute_index % MC_COLUMNS
+    var row := floori(float(absolute_index) / float(MC_COLUMNS))
     var tex := AtlasTexture.new()
     tex.atlas = mc_atlas
-    tex.region = Rect2(
-        float(col) * mc_cell.x,
-        float(row) * mc_cell.y,
-        mc_cell.x,
-        mc_cell.y
-    )
+    tex.region = Rect2(float(col) * MC_CELL.x, float(row) * MC_CELL.y, MC_CELL.x, MC_CELL.y)
     mc.texture = tex
-
-func play_catch() -> void:
-    catch_clock = 1.2
-    current_anim = "caught"
-    frame_index = 0
-    anim_clock = 0.0
-    _set_mc_frame("caught", 0)
-    if game != null:
-        spawn_vfx("catch", game.player + Vector2(0, -32))
 
 func get_ui_icon(id: String) -> Texture2D:
     if runtime_atlas == null or not UI_RECTS.has(id):
@@ -293,7 +274,7 @@ func _install_world_props() -> void:
         s.texture = get_world_asset(str(d.get("id", "")))
         s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
         s.position = d.get("p", Vector2.ZERO)
-        var prop_scale: float = float(d.get("s", 1.0))
+        var prop_scale := float(d.get("s", 1.0))
         s.scale = Vector2(prop_scale, prop_scale)
         s.z_index = 5
         game.add_child(s)
@@ -338,6 +319,22 @@ func _ground_color(p: Vector2) -> Color:
         return water
     return grass
 
+func _placeholder_cover_texture(w: int, h: int) -> Texture2D:
+    var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
+    image.fill(Color(0, 0, 0, 0))
+    var cx := float(w) * 0.5
+    var head_cy := 18.0
+    var head_r := 17.0
+    for y in range(h):
+        for x in range(w):
+            var dx := float(x) - cx
+            var dy := float(y) - head_cy
+            var in_head := dx * dx + dy * dy <= head_r * head_r
+            var in_body := x >= 13 and x <= w - 13 and y >= 27
+            if in_head or in_body:
+                image.set_pixel(x, y, Color.WHITE)
+    return ImageTexture.create_from_image(image)
+
 func _ellipse_texture(w: int, h: int) -> Texture2D:
     var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
     image.fill(Color(0, 0, 0, 0))
@@ -349,9 +346,4 @@ func _ellipse_texture(w: int, h: int) -> Texture2D:
             var ny := (float(y) - cy) / maxf(1.0, cy)
             if nx * nx + ny * ny <= 1.0:
                 image.set_pixel(x, y, Color(0.03, 0.05, 0.04, 0.72))
-    return ImageTexture.create_from_image(image)
-
-func _solid_texture(w: int, h: int) -> Texture2D:
-    var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
-    image.fill(Color.WHITE)
     return ImageTexture.create_from_image(image)
